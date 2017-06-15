@@ -1929,18 +1929,23 @@ function buildSessionQuery(req, buildCb) {
 
   if (req.query.facets) {
     query.aggregations = {mapG1: {terms: {field: "g1", size:1000, min_doc_count:1}},
-                          mapG2: {terms: {field: "g2", size:1000, min_doc_count:1}}};
-    query.aggregations.dbHisto = {aggregations: {db1: {sum: {field:"db1"}}, db2: {sum: {field:"db2"}}, pa1: {sum: {field:"pa1"}}, pa2: {sum: {field:"pa2"}}}};
+                          mapG2: {terms: {field: "g2", size:1000, min_doc_count:1}}
+                         };
+    query.aggregations.histos = {aggregations: {db1: {sum: {field:"db1"}},
+                                                db2: {sum: {field:"db2"}},
+                                                pa1: {sum: {field:"pa1"}},
+                                                pa2: {sum: {field:"pa2"}}
+                                 }};
 
     switch (req.query.bounding) {
     case "first":
-       query.aggregations.dbHisto.histogram = { field:'fp', interval:interval, min_doc_count:1 };
+       query.aggregations.histos.histogram = { field:'fp', interval:interval, min_doc_count:1 };
       break;
     case "database":
-      query.aggregations.dbHisto.histogram = { field:'timestamp', interval:interval*1000, min_doc_count:1 };
+      query.aggregations.histos.histogram = { field:'timestamp', interval:interval*1000, min_doc_count:1 };
       break;
     default:
-      query.aggregations.dbHisto.histogram = { field:'lp', interval:interval, min_doc_count:1 };
+      query.aggregations.histos.histogram = { field:'lp', interval:interval, min_doc_count:1 };
       break;
     }
   }
@@ -2519,35 +2524,44 @@ function graphMerge(req, query, aggregations) {
     db2Histo: [],
     pa1Histo: [],
     pa2Histo: [],
+    lpHistoMin: 0xffffffff,
+    dbHistoMin: 0xffffffff,
+    paHistoMin: 0xffffffff,
+    lpHistoMax: 0,
+    dbHistoMax: 0,
+    paHistoMax: 0,
     xmin: req.query.startTime * 1000|| null,
     xmax: req.query.stopTime * 1000 || null,
-    interval: query.aggregations?query.aggregations.dbHisto.histogram.interval || 60 : 60
+    interval: query.aggregations?query.aggregations.histos.histogram.interval || 60 : 60
   };
 
-  if (!aggregations || !aggregations.dbHisto) {
+  if (!aggregations || !aggregations.histos) {
     return graph;
   }
 
+  var multi = 1;
   if (req.query.bounding === "database") {
-    graph.interval = query.aggregations?(query.aggregations.dbHisto.histogram.interval/1000) || 60 : 60;
-    aggregations.dbHisto.buckets.forEach(function (item) {
-      var key = item.key;
-      graph.lpHisto.push([key, item.doc_count]);
-      graph.pa1Histo.push([key, item.pa1.value]);
-      graph.pa2Histo.push([key, item.pa2.value]);
-      graph.db1Histo.push([key, item.db1.value]);
-      graph.db2Histo.push([key, item.db2.value]);
-    });
+    graph.interval = query.aggregations?(query.aggregations.histos.histogram.interval/1000) || 60 : 60;
   } else {
-    aggregations.dbHisto.buckets.forEach(function (item) {
-      var key = item.key*1000;
-      graph.lpHisto.push([key, item.doc_count]);
-      graph.pa1Histo.push([key, item.pa1.value]);
-      graph.pa2Histo.push([key, item.pa2.value]);
-      graph.db1Histo.push([key, item.db1.value]);
-      graph.db2Histo.push([key, item.db2.value]);
-    });
+    multi = 1000;
   }
+
+  aggregations.histos.buckets.forEach(function (item) {
+    var key = item.key * multi;
+    graph.lpHisto.push([key, item.doc_count]);
+    graph.lpHistoMin = Math.min(graph.lpHistoMin, item.doc_count);
+    graph.lpHistoMax = Math.max(graph.lpHistoMax, item.doc_count);
+
+    graph.pa1Histo.push([key, item.pa1.value]);
+    graph.pa2Histo.push([key, item.pa2.value]);
+    graph.paHistoMin = Math.min(graph.paHistoMin, item.pa1.value + item.pa2.value);
+    graph.paHistoMax = Math.max(graph.paHistoMax, item.pa1.value + item.pa2.value);
+
+    graph.db1Histo.push([key, item.db1.value]);
+    graph.db2Histo.push([key, item.db2.value]);
+    graph.dbHistoMin = Math.min(graph.dbHistoMin, item.db1.value + item.db2.value);
+    graph.dbHistoMax = Math.max(graph.dbHistoMax, item.db1.value + item.db2.value);
+  });
   return graph;
 }
 
@@ -2691,8 +2705,8 @@ app.get('/sessions.json', function(req, res) {
       query._source = ["pr", "ro", "db", "db1", "db2", "fp", "lp", "a1", "p1", "a2", "p2", "pa", "pa1", "pa2", "by", "by1", "by2", "no", "us", "g1", "g2", "esub", "esrc", "edst", "efn", "dnsho", "tls", "ircch", "tipv61-term", "tipv62-term"];
     }
 
-    if (query.aggregations && query.aggregations.dbHisto) {
-      graph.interval = query.aggregations.dbHisto.histogram.interval;
+    if (query.aggregations && query.aggregations.histos) {
+      graph.interval = query.aggregations.histos.histogram.interval;
     }
 
     console.log("sessions.json query", JSON.stringify(query));
@@ -2832,7 +2846,7 @@ app.get('/spigraph.json', function(req, res) {
       }
 
       var aggs = result.aggregations.field.buckets;
-      var interval = query.aggregations.dbHisto.histogram.interval;
+      var interval = query.aggregations.histos.histogram.interval;
       var filter = {term: {}};
       query.query.bool.filter.push(filter);
 
@@ -2985,8 +2999,7 @@ app.get('/spiview.json', function(req, res) {
               protocols[item.key] = item.doc_count;
             });
 
-            delete result.aggregations.dbHisto;
-            delete result.aggregations.paHisto;
+            delete result.aggregations.histos;
             delete result.aggregations.mapG1;
             delete result.aggregations.mapG2;
             delete result.aggregations.protocols;
