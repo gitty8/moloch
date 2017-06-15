@@ -31,7 +31,7 @@ require('./help/help.test');
 
 // require('./settings/settings.test');
 
-require('./visualization/tests/graph.test');
+// require('./visualization/tests/graph.test');
 require('./visualization/tests/map.test');
 
 // define test constants

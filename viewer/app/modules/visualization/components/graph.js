@@ -111,6 +111,13 @@
                 autoscaleMargin : 0.2,
                 tickFormatter   : function(v, axis) {
                   return $filter('commaString')(v);
+                },
+                transform:  function(v) {
+                  if (v === 0) { v = 0.0001; }
+                  return Math.log10(v);
+                },
+                inverseTransform: function(v) {
+                  return Math.pow(10,v);
                 }
               },
               grid          : {
