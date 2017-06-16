@@ -80,6 +80,9 @@
               scope.graph[i].bars = { show:showBars };
             }
 
+            let yMax = `${scope.type}Max`;
+            let yMin = `${scope.type}Min`;
+
             scope.graphOptions  = { // flot graph options
               series      : {
                 stack     : true,
@@ -105,19 +108,13 @@
                 }
               },
               yaxis   : {
-                min   : 0,
+                min   : data[yMin],
+                max   : data[yMax],
                 color : foregroundColor,
                 zoomRange       : false,
                 autoscaleMargin : 0.2,
                 tickFormatter   : function(v, axis) {
                   return $filter('commaString')(v);
-                },
-                transform:  function(v) {
-                  if (v === 0) { v = 0.0001; }
-                  return Math.log10(v);
-                },
-                inverseTransform: function(v) {
-                  return Math.pow(10,v);
                 }
               },
               grid          : {
@@ -137,6 +134,22 @@
                 frameRate   : 20
               }
             };
+
+            if (scope.log) {
+              scope.graphOptions.yaxis.transform = function(v) {
+                if (v === 0) { v = 0.0001; }
+                return Math.log10(v);
+              };
+              scope.graphOptions.yaxis.inverseTransform = function(v) {
+                return Math.pow(10,v);
+              };
+              scope.graphOptions.yaxis.ticks = [];
+              let val = data[yMin];
+              while (val < data[yMax]) {
+                scope.graphOptions.yaxis.ticks.push(val);
+                val = val * 10;
+              }
+            }
           }
 
 
@@ -221,10 +234,7 @@
             if (scope.type !== newType) {
               scope.type = newType;
               setup(scope.graphData);
-
-              plot.setData(scope.graph);
-              plot.setupGrid();
-              plot.draw();
+              plot = $.plot(plotArea, scope.graph, scope.graphOptions);
             }
           });
 
@@ -236,14 +246,20 @@
             }
           });
 
+          scope.$on('update:log', (event, newLog) => {
+            if (scope.log !== newLog) {
+              scope.log = newLog;
+              setup(scope.graphData);
+              plot = $.plot(plotArea, scope.graph, scope.graphOptions);
+            }
+          });
+
 
           /* exposed functions --------------------------------------------- */
           scope.changeHistoType = function() {
             setup(scope.graphData);
 
-            plot.setData(scope.graph);
-            plot.setupGrid();
-            plot.draw();
+            plot = $.plot(plotArea, scope.graph, scope.graphOptions);
 
             if (scope.primary) { // primary graph sets all graph's histo type
               scope.$emit('change:histo:type', scope.type);
@@ -259,6 +275,15 @@
 
             if (scope.primary) { // primary graph sets all graph's series type
               scope.$emit('change:series:type', scope.seriesType);
+            }
+          };
+
+          scope.logGraph = function() {
+            scope.log = !scope.log;
+            setup(scope.graphData);
+            plot = $.plot(plotArea, scope.graph, scope.graphOptions);
+            if (scope.primary) { // primary graph sets all graph's to log
+              scope.$emit('change:log', scope.log);
             }
           };
 

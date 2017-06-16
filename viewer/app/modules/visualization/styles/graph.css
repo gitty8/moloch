@@ -35,10 +35,16 @@ session-graph .tickLabel {
 session-graph .session-graph-btn-container {
   position: absolute;
   left    : 50%;
-  top     : 0;
+  top     : -15px;
 }
 session-graph .session-graph-btn-container > div {
   position: relative;
   left    : -50%;
   z-index : 9; /* above timeline */
+}
+session-graph button {
+  position: absolute;
+  left    : 2px;
+  top     : -15px;
+  z-index : 9;
 }

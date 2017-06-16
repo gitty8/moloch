@@ -114,3 +114,9 @@ moloch-spiview .alert .btn {
 moloch-spiview .fa-spin.ng-animate {
   -webkit-animation: none 0s;
 }
+
+
+/* graph map div ----------------------------- */
+moloch-spiview .graph-map-div {
+  margin-top: 100px;
+}

@@ -126,3 +126,9 @@ ul.dropdown-menu div li a {
   cursor          : pointer;
   text-decoration : none;
 }
+
+
+/* graph map div ----------------------------- */
+session .graph-map-div {
+  margin-top: 100px;
+}

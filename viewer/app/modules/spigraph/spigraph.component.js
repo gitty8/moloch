@@ -113,6 +113,11 @@
         this.$scope.$broadcast('update:series:type', newType);
       });
 
+      this.$scope.$on('change:log', (event, newLog) => {
+        // update all the other graphs
+        this.$scope.$broadcast('update:log', newLog);
+      });
+
       // watch for additions to search parameters from session detail or map
       this.$scope.$on('add:to:search', (event, args) => {
         // notify children (namely expression typeahead)
